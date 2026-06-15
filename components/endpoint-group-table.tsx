@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/components/ui/use-toast"
 import { EndpointGroupWithEndpoints } from "@/types/endpoint-group"
-import { deleteEndpointGroup, toggleEndpointGroupStatus, testEndpointGroup } from "@/lib/services/endpoint-groups"
+import { deleteEndpointGroup, EndpointGroupTestResponse, toggleEndpointGroupStatus, testEndpointGroup } from "@/lib/services/endpoint-groups"
 import { formatDate } from "@/lib/utils"
 import { EndpointGroupExample } from "./endpoint-group-example"
 import {
@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal } from "lucide-react"
+import { PushDebugDialog } from "./push-debug-dialog"
 
 interface EndpointGroupTableProps {
   groups: EndpointGroupWithEndpoints[]
@@ -49,6 +50,8 @@ export function EndpointGroupTable({ groups, onGroupsUpdate }: EndpointGroupTabl
   const [viewExample, setViewExample] = useState<EndpointGroupWithEndpoints | null>(null)
   const [isLoading, setIsLoading] = useState<string | null>(null)
   const [isTesting, setIsTesting] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<EndpointGroupTestResponse | undefined>(undefined)
+  const [testDebugOpen, setTestDebugOpen] = useState(false)
   const { toast } = useToast()
   
   const filteredGroups = groups.filter((group) => {
@@ -125,6 +128,8 @@ export function EndpointGroupTable({ groups, onGroupsUpdate }: EndpointGroupTabl
     setIsTesting(group.id)
     try {
       const result = await testEndpointGroup(group)
+      setTestResult(result)
+      setTestDebugOpen(true)
       toast({
         title: "测试结果",
         description: `成功: ${result.successCount}, 失败: ${result.failedCount}`,
@@ -273,6 +278,14 @@ export function EndpointGroupTable({ groups, onGroupsUpdate }: EndpointGroupTabl
         group={viewExample}
         open={!!viewExample}
         onOpenChange={(open) => !open && setViewExample(null)}
+      />
+
+      <PushDebugDialog
+        open={testDebugOpen}
+        onOpenChange={setTestDebugOpen}
+        title="接口组测试参数"
+        description="这里展示的是接口组测试时的结果统计，以及其中接口实际使用的参数。"
+        groupResult={testResult}
       />
     </div>
   )

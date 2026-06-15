@@ -1,5 +1,6 @@
 import { EndpointGroupWithEndpoints } from "@/types/endpoint-group"
 import { generateExampleBody } from "@/lib/utils"
+import { PushDebugInfo } from "./endpoints"
 
 const API_URL = '/api/endpoint-groups'
 
@@ -16,6 +17,22 @@ interface EndpointGroupResponse {
 
 interface ToggleEndpointGroupResponse extends EndpointGroupResponse {
   status: "active" | "inactive"
+}
+
+export interface EndpointGroupTestResult {
+  endpoint: string
+  status: "success" | "failed"
+  error?: string
+  debug?: PushDebugInfo
+}
+
+export interface EndpointGroupTestResponse {
+  status: string
+  message: string
+  total: number
+  successCount: number
+  failedCount: number
+  details: EndpointGroupTestResult[]
 }
 
 export async function getEndpointGroups(): Promise<EndpointGroupWithEndpoints[]> {
@@ -93,7 +110,7 @@ export async function toggleEndpointGroupStatus(id: string): Promise<EndpointGro
   }
 }
 
-export async function testEndpointGroup(group: EndpointGroupWithEndpoints): Promise<any> {
+export async function testEndpointGroup(group: EndpointGroupWithEndpoints): Promise<EndpointGroupTestResponse> {
   // 使用所有接口中的规则生成测试数据
   const allRules = group.endpoints.flatMap(e => e.rule ? [e.rule] : [])
   const exampleBody = generateExampleBody(allRules.length > 0 ? allRules.join('\n') : '{}')
@@ -102,6 +119,7 @@ export async function testEndpointGroup(group: EndpointGroupWithEndpoints): Prom
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'x-debug-push': '1',
     },
     body: JSON.stringify(exampleBody),
   })
@@ -111,5 +129,5 @@ export async function testEndpointGroup(group: EndpointGroupWithEndpoints): Prom
     throw new Error(error.error || '测试推送失败')
   }
 
-  return response.json()
+  return response.json() as Promise<EndpointGroupTestResponse>
 } 

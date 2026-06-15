@@ -54,25 +54,33 @@ export async function POST(
       groupEndpoints.map(async (endpoint: any) => {
         const origin = new URL(request.url).origin
         const url = `${origin}/api/push/${endpoint.id}`
+        const debugMode = request.headers.get("x-debug-push") === "1"
 
         const response = await fetchWithTimeout(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(debugMode ? { 'x-debug-push': '1' } : {}),
           },
           body: JSON.stringify(body),
           timeout: 10000 // 10秒超时
         })
 
+        const responseText = await response.text()
+        const responseData = responseText ? JSON.parse(responseText) : null
+
         if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`接口 ${endpoint.name} 返回错误: ${errorText}`)
+          throw {
+            message: `接口 ${endpoint.name} 返回错误: ${responseData?.message || responseText}`,
+            debug: responseData?.debug
+          }
         }
 
         return {
           endpointId: endpoint.id,
           name: endpoint.name,
-          success: true
+          success: true,
+          debug: responseData?.debug
         }
       })
     )
@@ -89,7 +97,8 @@ export async function POST(
       details: results.map((r: any, i: number) => ({
         endpoint: groupEndpoints[i].name,
         status: r.status === 'fulfilled' ? 'success' : 'failed',
-        error: r.status === 'rejected' ? r.reason.message : undefined
+        error: r.status === 'rejected' ? r.reason.message : undefined,
+        debug: r.status === 'fulfilled' ? r.value.debug : r.reason.debug
       }))
     })
 

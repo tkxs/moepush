@@ -40,9 +40,10 @@ import { STATUS_LABELS, STATUS_COLORS } from "@/lib/constants/endpoints"
 import { Channel } from "@/lib/channels"
 import { EndpointExample } from "@/components/endpoint-example"
 import { useRouter } from "next/navigation"
-import { deleteEndpoint, toggleEndpointStatus, testEndpoint } from "@/lib/services/endpoints"
+import { deleteEndpoint, EndpointTestError, PushDebugInfo, toggleEndpointStatus, testEndpoint } from "@/lib/services/endpoints"
 import { Checkbox } from "@/components/ui/checkbox"
 import { CreateEndpointGroupDialog } from "./create-endpoint-group-dialog"
+import { PushDebugDialog } from "./push-debug-dialog"
 
 interface EndpointTableProps {
   endpoints: Endpoint[]
@@ -68,6 +69,8 @@ export function EndpointTable({
   const [selectedEndpoints, setSelectedEndpoints] = useState<Endpoint[]>([])
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState<string | null>(null)
+  const [testDebug, setTestDebug] = useState<PushDebugInfo | undefined>(undefined)
+  const [testDebugOpen, setTestDebugOpen] = useState(false)
 
   const filteredEndpoints = endpoints?.filter((endpoint) => {
     if (!searchQuery.trim()) return true
@@ -128,15 +131,21 @@ export function EndpointTable({
   async function handleTest(endpoint: Endpoint) {
     setIsTesting(endpoint.id)
     try {
-      await testEndpoint(
+      const result = await testEndpoint(
         endpoint.id,
         endpoint.rule,
       )
+      setTestDebug(result.debug)
+      setTestDebugOpen(true)
       toast({
         title: "测试成功",
         description: "消息已成功推送",
       })
     } catch (error) {
+      if (error instanceof EndpointTestError) {
+        setTestDebug(error.debug)
+        setTestDebugOpen(true)
+      }
       console.error('Test endpoint error:', error)
       toast({
         title: "测试失败",
@@ -344,6 +353,14 @@ export function EndpointTable({
         endpoint={viewExample}
         open={!!viewExample}
         onOpenChange={(open) => !open && setViewExample(null)}
+      />
+
+      <PushDebugDialog
+        open={testDebugOpen}
+        onOpenChange={setTestDebugOpen}
+        title="测试推送参数"
+        description="这里展示的是测试推送时实际使用的请求体和最终发送参数。"
+        debug={testDebug}
       />
 
       <CreateEndpointGroupDialog 

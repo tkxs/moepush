@@ -31,6 +31,7 @@ export async function POST(
     }
 
     const body = await request.json()
+    const debugMode = request.headers.get("x-debug-push") === "1"
     console.log('body:', body)
 
     const processedTemplate = safeInterpolate(endpoint.rule, {
@@ -52,7 +53,20 @@ export async function POST(
       }
     )
 
-    return new Response(JSON.stringify({ message: "推送成功" }), { status: 200 })
+    return new Response(JSON.stringify({
+      message: "推送成功",
+      ...(debugMode ? {
+        debug: {
+          requestBody: body,
+          renderedMessage: messageObj,
+          channel: {
+            id: endpoint.channel.id,
+            name: endpoint.channel.name,
+            type: endpoint.channel.type,
+          }
+        }
+      } : {})
+    }), { status: 200 })
 
   } catch (error) {
     console.error("Push error:", error)
@@ -61,4 +75,4 @@ export async function POST(
       { status: 500 }
     )
   }
-} 
+}
