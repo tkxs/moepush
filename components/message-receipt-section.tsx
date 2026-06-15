@@ -18,7 +18,7 @@ import { MessageReceiptDetailDialog } from "./message-receipt-detail-dialog"
 
 interface MessageReceiptSectionProps {
   title: string
-  defaultSourceType: ReceiptSourceType
+  defaultSourceType: ReceiptSourceType | "all"
 }
 
 export function MessageReceiptSection({
@@ -64,6 +64,8 @@ export function MessageReceiptSection({
   }
 
   useEffect(() => {
+    setFilter(defaultSourceType)
+    setPage(1)
     loadRecords(1, defaultSourceType)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultSourceType])
@@ -97,17 +99,6 @@ export function MessageReceiptSection({
         </div>
         <div className="flex gap-2">
           <Button
-            variant={filter === defaultSourceType ? "default" : "outline"}
-            size="sm"
-            onClick={() => {
-              setFilter(defaultSourceType)
-              setPage(1)
-              loadRecords(1, defaultSourceType)
-            }}
-          >
-            当前标签
-          </Button>
-          <Button
             variant={filter === "all" ? "default" : "outline"}
             size="sm"
             onClick={() => {
@@ -116,7 +107,29 @@ export function MessageReceiptSection({
               loadRecords(1, "all")
             }}
           >
-            全部记录
+            全部
+          </Button>
+          <Button
+            variant={filter === "endpoint" ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setFilter("endpoint")
+              setPage(1)
+              loadRecords(1, "endpoint")
+            }}
+          >
+            推送接口
+          </Button>
+          <Button
+            variant={filter === "group" ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setFilter("group")
+              setPage(1)
+              loadRecords(1, "group")
+            }}
+          >
+            接口组
           </Button>
         </div>
       </div>

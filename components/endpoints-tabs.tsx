@@ -56,7 +56,7 @@ export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints
     setActiveTab(value)
     if (value === "groups") {
       loadGroups()
-    } else {
+    } else if (value === "endpoints") {
       loadEndpoints()
     }
   }
@@ -67,9 +67,10 @@ export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints
 
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-      <TabsList className="grid w-full max-w-md grid-cols-2">
+      <TabsList className="grid w-full max-w-lg grid-cols-3">
         <TabsTrigger value="endpoints">推送接口</TabsTrigger>
         <TabsTrigger value="groups">接口组</TabsTrigger>
+        <TabsTrigger value="records">消息记录</TabsTrigger>
       </TabsList>
       <TabsContent value="endpoints">
         <Card className="bg-white/50 border-blue-100">
@@ -92,10 +93,6 @@ export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints
                 onGroupCreated={switchToGroupsTab}
               />
             )}
-            <MessageReceiptSection
-              title="接收消息记录"
-              defaultSourceType="endpoint"
-            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -118,9 +115,21 @@ export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints
                 onGroupsUpdate={loadGroups}
               />
             )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+      <TabsContent value="records">
+        <Card className="bg-white/50 border-blue-100">
+          <CardHeader>
+            <CardTitle>消息记录</CardTitle>
+            <CardDescription>
+              查看外部系统调用平台接口后的接收与发送记录
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <MessageReceiptSection
               title="接收消息记录"
-              defaultSourceType="group"
+              defaultSourceType="all"
             />
           </CardContent>
         </Card>

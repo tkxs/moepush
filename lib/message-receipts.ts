@@ -98,6 +98,16 @@ interface CreateDeliveryInput {
 
 const RETENTION_DAYS = 30
 
+function isMissingTableError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  const message = error.message.toLowerCase()
+  return (
+    message.includes("no such table") ||
+    message.includes("message_receipts") ||
+    message.includes("message_receipt_deliveries")
+  )
+}
+
 function serializeJson(value: unknown) {
   return JSON.stringify(value ?? {})
 }
@@ -151,7 +161,15 @@ function mapDelivery(record: MessageReceiptDelivery): MessageReceiptDeliveryItem
 export async function cleanupExpiredMessageReceipts() {
   const db = getDb()
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000)
-  await db.delete(messageReceipts).where(lt(messageReceipts.createdAt, cutoff))
+  try {
+    await db.delete(messageReceipts).where(lt(messageReceipts.createdAt, cutoff))
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[MESSAGE_RECEIPTS_CLEANUP] tables not ready yet")
+      return
+    }
+    throw error
+  }
 }
 
 export async function createMessageReceipt(input: CreateReceiptInput) {
@@ -241,38 +259,59 @@ export async function getMessageReceipts(params: {
 
   const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions)
 
-  const [records, totalRows, summaryRows] = await Promise.all([
-    db.query.messageReceipts.findMany({
-      where: whereClause ?? undefined,
-      orderBy: [desc(messageReceipts.createdAt)],
-      limit: params.pageSize,
-      offset: (params.page - 1) * params.pageSize,
-    }),
-    db.select({ count: sql<number>`count(*)` }).from(messageReceipts).where(whereClause ?? undefined),
-    db.select({
-      total: sql<number>`count(*)`,
-      success: sql<number>`sum(case when ${messageReceipts.status} = 'success' then 1 else 0 end)`,
-      failed: sql<number>`sum(case when ${messageReceipts.status} = 'failed' then 1 else 0 end)`,
-      partial: sql<number>`sum(case when ${messageReceipts.status} = 'partial' then 1 else 0 end)`,
-    }).from(messageReceipts).where(whereClause ?? undefined),
-  ])
+  try {
+    const [records, totalRows, summaryRows] = await Promise.all([
+      db.query.messageReceipts.findMany({
+        where: whereClause ?? undefined,
+        orderBy: [desc(messageReceipts.createdAt)],
+        limit: params.pageSize,
+        offset: (params.page - 1) * params.pageSize,
+      }),
+      db.select({ count: sql<number>`count(*)` }).from(messageReceipts).where(whereClause ?? undefined),
+      db.select({
+        total: sql<number>`count(*)`,
+        success: sql<number>`sum(case when ${messageReceipts.status} = 'success' then 1 else 0 end)`,
+        failed: sql<number>`sum(case when ${messageReceipts.status} = 'failed' then 1 else 0 end)`,
+        partial: sql<number>`sum(case when ${messageReceipts.status} = 'partial' then 1 else 0 end)`,
+      }).from(messageReceipts).where(whereClause ?? undefined),
+    ])
 
-  const total = totalRows[0]?.count ?? 0
-  const summary = summaryRows[0] ?? { total: 0, success: 0, failed: 0, partial: 0 }
+    const total = totalRows[0]?.count ?? 0
+    const summary = summaryRows[0] ?? { total: 0, success: 0, failed: 0, partial: 0 }
 
-  return {
-    summary: {
-      total: Number(summary.total ?? 0),
-      success: Number(summary.success ?? 0),
-      failed: Number(summary.failed ?? 0),
-      partial: Number(summary.partial ?? 0),
-    },
-    records: records.map(mapReceipt),
-    pagination: {
-      page: params.page,
-      pageSize: params.pageSize,
-      total: Number(total),
-    },
+    return {
+      summary: {
+        total: Number(summary.total ?? 0),
+        success: Number(summary.success ?? 0),
+        failed: Number(summary.failed ?? 0),
+        partial: Number(summary.partial ?? 0),
+      },
+      records: records.map(mapReceipt),
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        total: Number(total),
+      },
+    }
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[MESSAGE_RECEIPTS_GET] tables not ready yet")
+      return {
+        summary: {
+          total: 0,
+          success: 0,
+          failed: 0,
+          partial: 0,
+        },
+        records: [],
+        pagination: {
+          page: params.page,
+          pageSize: params.pageSize,
+          total: 0,
+        },
+      }
+    }
+    throw error
   }
 }
 
@@ -282,22 +321,41 @@ export async function getMessageReceiptDetail(params: {
 }): Promise<MessageReceiptDetailResponse | null> {
   await cleanupExpiredMessageReceipts()
   const db = getDb()
-  const record = await db.query.messageReceipts.findFirst({
-    where: and(
-      eq(messageReceipts.id, params.id),
-      eq(messageReceipts.userId, params.userId)
-    ),
-  })
+  let record
+  try {
+    record = await db.query.messageReceipts.findFirst({
+      where: and(
+        eq(messageReceipts.id, params.id),
+        eq(messageReceipts.userId, params.userId)
+      ),
+    })
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[MESSAGE_RECEIPT_DETAIL] tables not ready yet")
+      return null
+    }
+    throw error
+  }
 
   if (!record) return null
 
-  const deliveries = await db.query.messageReceiptDeliveries.findMany({
-    where: and(
-      eq(messageReceiptDeliveries.receiptId, record.id),
-      eq(messageReceiptDeliveries.userId, params.userId)
-    ),
-    orderBy: [desc(messageReceiptDeliveries.createdAt)],
-  })
+  let deliveries: MessageReceiptDelivery[] = []
+  try {
+    deliveries = await db.query.messageReceiptDeliveries.findMany({
+      where: and(
+        eq(messageReceiptDeliveries.receiptId, record.id),
+        eq(messageReceiptDeliveries.userId, params.userId)
+      ),
+      orderBy: [desc(messageReceiptDeliveries.createdAt)],
+    })
+  } catch (error) {
+    if (isMissingTableError(error)) {
+      console.warn("[MESSAGE_RECEIPT_DETAIL_DELIVERIES] tables not ready yet")
+      deliveries = []
+    } else {
+      throw error
+    }
+  }
 
   return {
     record: {

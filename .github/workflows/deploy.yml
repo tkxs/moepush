@@ -38,3 +38,13 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
+
+      - name: Verify D1 message receipt tables
+        run: |
+          RESULT=$(wrangler d1 execute "${{ secrets.D1_DATABASE_NAME }}" --remote --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('message_receipts','message_receipt_deliveries');")
+          echo "$RESULT"
+          echo "$RESULT" | grep "message_receipts"
+          echo "$RESULT" | grep "message_receipt_deliveries"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
