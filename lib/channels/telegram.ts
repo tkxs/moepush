@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, SendMessageOptions, SendMessageResult } from "./base"
 
 interface TelegramMessage {
   chat_id: string
@@ -52,7 +52,7 @@ export class TelegramChannel extends BaseChannel {
   async sendMessage(
     message: TelegramMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     const { botToken, chatId } = options
     
     if (!botToken || !chatId) {
@@ -61,6 +61,11 @@ export class TelegramChannel extends BaseChannel {
     
     console.log('sendTelegramMessage message:', message)
 
+    const finalPayload = {
+      ...message,
+      chat_id: chatId,
+    }
+
     const response = await fetch(
       `https://api.telegram.org/bot${botToken}/sendMessage`,
       {
@@ -68,18 +73,20 @@ export class TelegramChannel extends BaseChannel {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...message,
-          chat_id: chatId,
-        }),
+        body: JSON.stringify(finalPayload),
       }
     )
 
-    if (!response.ok) {
-      const data = await response.json() as { description: string }
+    const data = await response.json() as { ok?: boolean, description?: string, result?: unknown }
+
+    if (!response.ok || data.ok === false) {
       throw new Error(`Telegram 消息推送失败: ${data.description}`)
     }
 
-    return response
+    return {
+      response,
+      finalPayload,
+      responseSummary: data,
+    }
   }
 } 

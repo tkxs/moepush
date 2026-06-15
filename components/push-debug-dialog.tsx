@@ -22,12 +22,44 @@ interface PushDebugDialogProps {
 }
 
 function JsonBlock({ value }: { value: unknown }) {
+  const isEmptyObject =
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value as Record<string, unknown>).length === 0
+
   return (
     <div className="rounded-lg bg-muted p-4">
+      {isEmptyObject ? (
+        <div className="mb-3 text-xs text-muted-foreground">
+          当前请求体为空对象。通常表示这个模板没有引用任何 `${"{body.xxx}"}` 变量，测试推送不需要额外入参。
+        </div>
+      ) : null}
       <pre className="text-sm whitespace-pre-wrap break-all font-mono">
         {JSON.stringify(value ?? {}, null, 2)}
       </pre>
     </div>
+  )
+}
+
+function DebugPane({ debug }: { debug?: PushDebugInfo }) {
+  return (
+    <Tabs defaultValue="request" className="mt-4">
+      <TabsList>
+        <TabsTrigger value="request">请求体</TabsTrigger>
+        <TabsTrigger value="rendered">模板结果</TabsTrigger>
+        <TabsTrigger value="final">最终发送参数</TabsTrigger>
+      </TabsList>
+      <TabsContent value="request" className="mt-4">
+        <JsonBlock value={debug?.requestBody} />
+      </TabsContent>
+      <TabsContent value="rendered" className="mt-4">
+        <JsonBlock value={debug?.renderedMessage} />
+      </TabsContent>
+      <TabsContent value="final" className="mt-4">
+        <JsonBlock value={debug?.finalPayload} />
+      </TabsContent>
+    </Tabs>
   )
 }
 
@@ -102,34 +134,12 @@ export function PushDebugDialog({
                   </div>
                 </div>
 
-                <Tabs defaultValue="request">
-                  <TabsList>
-                    <TabsTrigger value="request">请求体</TabsTrigger>
-                    <TabsTrigger value="message">最终消息参数</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="request" className="mt-4">
-                    <JsonBlock value={activeDetail.debug.requestBody} />
-                  </TabsContent>
-                  <TabsContent value="message" className="mt-4">
-                    <JsonBlock value={activeDetail.debug.renderedMessage} />
-                  </TabsContent>
-                </Tabs>
+                <DebugPane debug={activeDetail.debug} />
               </div>
             ) : null}
           </div>
         ) : (
-          <Tabs defaultValue="request" className="mt-4">
-            <TabsList>
-              <TabsTrigger value="request">请求体</TabsTrigger>
-              <TabsTrigger value="message">最终消息参数</TabsTrigger>
-            </TabsList>
-            <TabsContent value="request" className="mt-4">
-              <JsonBlock value={debug?.requestBody} />
-            </TabsContent>
-            <TabsContent value="message" className="mt-4">
-              <JsonBlock value={debug?.renderedMessage} />
-            </TabsContent>
-          </Tabs>
+          <DebugPane debug={debug} />
         )}
       </DialogContent>
     </Dialog>

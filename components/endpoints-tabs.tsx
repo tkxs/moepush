@@ -11,6 +11,7 @@ import { getEndpoints } from "@/lib/services/endpoints"
 import { useToast } from "@/components/ui/use-toast"
 import { EndpointTable } from "@/components/endpoint-table"
 import { EndpointGroupTable } from "@/components/endpoint-group-table"
+import { MessageReceiptSection } from "@/components/message-receipt-section"
 
 export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints: Endpoint[], channels: Channel[] }) {
   const [endpoints, setEndpoints] = useState<Endpoint[]>(initialEndpoints)
@@ -91,6 +92,10 @@ export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints
                 onGroupCreated={switchToGroupsTab}
               />
             )}
+            <MessageReceiptSection
+              title="接收消息记录"
+              defaultSourceType="endpoint"
+            />
           </CardContent>
         </Card>
       </TabsContent>
@@ -113,6 +118,10 @@ export function EndpointsTabs({ initialEndpoints, channels }: { initialEndpoints
                 onGroupsUpdate={loadGroups}
               />
             )}
+            <MessageReceiptSection
+              title="接收消息记录"
+              defaultSourceType="group"
+            />
           </CardContent>
         </Card>
       </TabsContent>

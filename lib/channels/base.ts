@@ -31,10 +31,16 @@ export interface SendMessageOptions {
   [key: string]: any
 }
 
+export interface SendMessageResult {
+  response: Response
+  finalPayload: any
+  responseSummary?: unknown
+}
+
 export abstract class BaseChannel {
   abstract readonly config: ChannelConfig
   
-  abstract sendMessage(message: any, options: SendMessageOptions): Promise<Response>
+  abstract sendMessage(message: any, options: SendMessageOptions): Promise<SendMessageResult>
   
   getTemplates(): MessageTemplate[] {
     return this.config.templates
@@ -48,3 +54,14 @@ export abstract class BaseChannel {
     return this.config.type
   }
 } 
+
+export async function parseResponseSummary(response: Response) {
+  const text = await response.clone().text()
+  if (!text) return null
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}

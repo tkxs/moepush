@@ -4,6 +4,11 @@ import { endpoints } from "@/lib/db/schema/endpoints"
 import { eq } from "drizzle-orm"
 import { safeInterpolate } from "@/lib/template"
 import { sendChannelMessage } from "@/lib/channels"
+import {
+  createMessageReceipt,
+  createMessageReceiptDelivery,
+  finalizeMessageReceipt,
+} from "@/lib/message-receipts"
 
 export const runtime = "edge"
 
@@ -11,6 +16,21 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  let debugMode = false
+  let sourceType: "endpoint" | "group" = "endpoint"
+  let parentReceiptId: string | null = null
+  let body: unknown = {}
+  let renderedMessage: unknown = null
+  let receiptId: string | null = null
+  let receiptContext: {
+    userId: string
+    targetId: string
+    targetName: string
+    channelId: string
+    channelName: string
+    channelType: string
+  } | null = null
+
   try {
     const { id } = await params
 
@@ -30,8 +50,10 @@ export async function POST(
       return new Response("接口已禁用", { status: 403 })
     }
 
-    const body = await request.json()
-    const debugMode = request.headers.get("x-debug-push") === "1"
+    body = await request.json()
+    debugMode = request.headers.get("x-debug-push") === "1"
+    sourceType = request.headers.get("x-source-type") === "group" ? "group" : "endpoint"
+    parentReceiptId = request.headers.get("x-parent-receipt-id")
     console.log('body:', body)
 
     const processedTemplate = safeInterpolate(endpoint.rule, {
@@ -39,10 +61,31 @@ export async function POST(
     })
 
     const messageObj = JSON.parse(processedTemplate)
+    renderedMessage = structuredClone(messageObj)
+    receiptContext = {
+      userId: endpoint.userId,
+      targetId: endpoint.id,
+      targetName: endpoint.name,
+      channelId: endpoint.channel.id,
+      channelName: endpoint.channel.name,
+      channelType: endpoint.channel.type,
+    }
 
-    await sendChannelMessage(
+    receiptId = parentReceiptId
+      ? parentReceiptId
+      : !debugMode
+        ? await createMessageReceipt({
+            userId: endpoint.userId,
+            sourceType,
+            sourceId: endpoint.id,
+            sourceName: endpoint.name,
+            requestBody: body,
+          })
+        : null
+
+    const sendResult = await sendChannelMessage(
       endpoint.channel.type as any,
-      messageObj,
+      structuredClone(messageObj),
       {
         webhook: endpoint.channel.webhook,
         secret: endpoint.channel.secret,
@@ -53,12 +96,32 @@ export async function POST(
       }
     )
 
+    if (receiptId) {
+      await createMessageReceiptDelivery({
+        receiptId,
+        userId: receiptContext.userId,
+        targetId: receiptContext.targetId,
+        targetName: receiptContext.targetName,
+        channelId: receiptContext.channelId,
+        channelName: receiptContext.channelName,
+        channelType: receiptContext.channelType,
+        status: "success",
+        renderedMessage,
+        finalPayload: sendResult.finalPayload,
+        responseSummary: sendResult.responseSummary,
+      })
+      if (!parentReceiptId) {
+        await finalizeMessageReceipt(receiptId)
+      }
+    }
+
     return new Response(JSON.stringify({
       message: "推送成功",
       ...(debugMode ? {
         debug: {
           requestBody: body,
-          renderedMessage: messageObj,
+          renderedMessage,
+          finalPayload: sendResult.finalPayload,
           channel: {
             id: endpoint.channel.id,
             name: endpoint.channel.name,
@@ -70,8 +133,37 @@ export async function POST(
 
   } catch (error) {
     console.error("Push error:", error)
+
+    if (!debugMode && receiptId && receiptContext) {
+      await createMessageReceiptDelivery({
+        receiptId,
+        userId: receiptContext.userId,
+        targetId: receiptContext.targetId,
+        targetName: receiptContext.targetName,
+        channelId: receiptContext.channelId,
+        channelName: receiptContext.channelName,
+        channelType: receiptContext.channelType,
+        status: "failed",
+        renderedMessage,
+        finalPayload: renderedMessage,
+        errorMessage: error instanceof Error ? error.message : "推送失败",
+      })
+      if (!parentReceiptId) {
+        await finalizeMessageReceipt(receiptId)
+      }
+    }
+
     return new Response(
-      JSON.stringify({ message: error instanceof Error ? error.message : "推送失败" }),
+      JSON.stringify({
+        message: error instanceof Error ? error.message : "推送失败",
+        ...(debugMode ? {
+          debug: {
+            requestBody: body,
+            renderedMessage,
+            finalPayload: renderedMessage,
+          }
+        } : {})
+      }),
       { status: 500 }
     )
   }

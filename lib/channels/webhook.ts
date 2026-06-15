@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, parseResponseSummary, SendMessageOptions, SendMessageResult } from "./base"
 
 interface WebhookMessage {
   method?: string
@@ -48,7 +48,7 @@ export class WebhookChannel extends BaseChannel {
   async sendMessage(
     message: WebhookMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     const { webhook } = options
     
     if (!webhook) {
@@ -91,7 +91,11 @@ export class WebhookChannel extends BaseChannel {
         throw new Error(`Webhook 请求失败: ${text}`)
       }
 
-      return response
+      return {
+        response,
+        finalPayload: method === 'GET' ? { url, headers, method } : { url, headers, method, body: message.body },
+        responseSummary: await parseResponseSummary(response),
+      }
     } catch (error) {
       console.error('Webhook error:', error)
       throw error

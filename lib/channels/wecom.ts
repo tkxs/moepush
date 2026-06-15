@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, SendMessageOptions, SendMessageResult } from "./base"
 
 interface WecomMessage {
   msgtype: "text" | "markdown"
@@ -61,7 +61,7 @@ export class WecomChannel extends BaseChannel {
   async sendMessage(
     message: WecomMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     const { webhook } = options
     
     if (!webhook) {
@@ -78,11 +78,16 @@ export class WecomChannel extends BaseChannel {
       body: JSON.stringify(message),
     })
 
-    if (!response.ok) {
-      const data = await response.json() as { errmsg: string }
+    const data = await response.json() as { errcode?: number, errmsg?: string }
+
+    if (!response.ok || data.errcode !== 0) {
       throw new Error(`企业微信机器人消息推送失败: ${data.errmsg}`)
     }
 
-    return response
+    return {
+      response,
+      finalPayload: message,
+      responseSummary: data,
+    }
   }
 } 

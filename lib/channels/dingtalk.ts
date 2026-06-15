@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, SendMessageOptions, SendMessageResult } from "./base"
 
 interface DingTalkMessage {
   msgtype: string
@@ -112,7 +112,7 @@ export class DingTalkChannel extends BaseChannel {
   async sendMessage(
     message: DingTalkMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     try {
       const { webhook, secret } = options
       
@@ -150,7 +150,11 @@ export class DingTalkChannel extends BaseChannel {
         throw new Error(`钉钉消息推送失败: ${data.errmsg}`)
       }
 
-      return response
+      return {
+        response,
+        finalPayload: message,
+        responseSummary: data,
+      }
     } catch (error) {
       console.error('DingTalk error:', error)
       throw error

@@ -3,6 +3,10 @@ import { getDb } from '@/lib/db'
 import { fetchWithTimeout } from '@/lib/utils'
 import { endpointGroups, endpointToGroup } from '@/lib/db/schema/endpoint-groups'
 import { eq } from 'drizzle-orm'
+import {
+  createMessageReceipt,
+  finalizeMessageReceipt,
+} from '@/lib/message-receipts'
 
 export const runtime = 'edge'
 
@@ -12,6 +16,7 @@ export async function POST(
 ) {
   const { id } = await params
   const body = await request.json()
+  const debugMode = request.headers.get("x-debug-push") === "1"
 
   try {
     const db = await getDb()
@@ -50,17 +55,30 @@ export async function POST(
       )
     }
 
+    const receiptId = !debugMode
+      ? await createMessageReceipt({
+          userId: group.userId,
+          sourceType: "group",
+          sourceId: group.id,
+          sourceName: group.name,
+          requestBody: body,
+        })
+      : null
+
     const results = await Promise.allSettled(
       groupEndpoints.map(async (endpoint: any) => {
         const origin = new URL(request.url).origin
         const url = `${origin}/api/push/${endpoint.id}`
-        const debugMode = request.headers.get("x-debug-push") === "1"
 
         const response = await fetchWithTimeout(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(debugMode ? { 'x-debug-push': '1' } : {}),
+            ...(receiptId ? {
+              'x-parent-receipt-id': receiptId,
+              'x-source-type': 'group',
+            } : {}),
           },
           body: JSON.stringify(body),
           timeout: 10000 // 10秒超时
@@ -87,6 +105,10 @@ export async function POST(
 
     const successCount = results.filter((r: any) => r.status === 'fulfilled').length
     const failedCount = results.filter((r: any) => r.status === 'rejected').length
+
+    if (receiptId) {
+      await finalizeMessageReceipt(receiptId)
+    }
 
     return NextResponse.json({
       status: 'success',

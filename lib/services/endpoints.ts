@@ -6,6 +6,7 @@ const API_URL = "/api/endpoints"
 export interface PushDebugInfo {
   requestBody?: unknown
   renderedMessage?: unknown
+  finalPayload?: unknown
   channel?: {
     id?: string
     name?: string

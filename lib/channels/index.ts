@@ -1,4 +1,4 @@
-import { BaseChannel } from "./base"
+import { BaseChannel, SendMessageResult } from "./base"
 import { Channel as DBInferChannel } from "@/lib/db/schema/channels"
 import { DingTalkChannel } from "./dingtalk"
 import { WecomChannel } from "./wecom"
@@ -63,7 +63,7 @@ export async function sendChannelMessage(
   type: ChannelType, 
   message: any, 
   options: any
-): Promise<Response> {
+): Promise<SendMessageResult> {
   const channel = getChannel(type)
   return channel.sendMessage(message, options)
 }

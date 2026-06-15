@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, parseResponseSummary, SendMessageOptions, SendMessageResult } from "./base"
 
 interface DiscordMessage {
   content: string
@@ -23,7 +23,7 @@ export class DiscordChannel extends BaseChannel {
   async sendMessage(
     message: DiscordMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     const { webhook } = options
     
     if (!webhook) {
@@ -45,6 +45,10 @@ export class DiscordChannel extends BaseChannel {
       throw new Error(`Discord 消息推送失败: ${text}`)
     }
 
-    return response
+    return {
+      response,
+      finalPayload: message,
+      responseSummary: await parseResponseSummary(response),
+    }
   }
 } 

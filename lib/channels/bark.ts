@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, parseResponseSummary, SendMessageOptions, SendMessageResult } from "./base"
 
 interface BarkMessage {
   title?: string
@@ -209,7 +209,7 @@ export class BarkChannel extends BaseChannel {
   async sendMessage(
     message: BarkMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     const { webhook } = options
     
     if (!webhook) {
@@ -262,7 +262,11 @@ export class BarkChannel extends BaseChannel {
         throw new Error(`Bark 消息推送失败: ${text}`);
       }
 
-      return response;
+      return {
+        response,
+        finalPayload: postData,
+        responseSummary: await parseResponseSummary(response),
+      };
     } catch (error) {
       console.error('Bark 请求出错:', error);
       throw error;

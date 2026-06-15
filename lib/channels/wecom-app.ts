@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, SendMessageOptions, SendMessageResult } from "./base"
 
 interface WecomAppMessage {
   msgtype: string
@@ -51,7 +51,7 @@ export class WecomAppChannel extends BaseChannel {
   async sendMessage(
     message: WecomAppMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     const { corpId, agentId, secret } = options
     
     if (!corpId || !agentId || !secret) {
@@ -69,6 +69,12 @@ export class WecomAppChannel extends BaseChannel {
       throw new Error(`获取访问令牌失败: ${tokenData.errmsg}`)
     }
 
+    const finalPayload = {
+      ...message,
+      agentid: parseInt(agentId),
+      touser: message.touser || "@all",
+    }
+
     const response = await fetch(
       `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${tokenData.access_token}`,
       {
@@ -76,11 +82,7 @@ export class WecomAppChannel extends BaseChannel {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          ...message,
-          agentid: parseInt(agentId),
-          touser: message.touser || "@all",
-        }),
+        body: JSON.stringify(finalPayload),
       }
     )
 
@@ -89,6 +91,10 @@ export class WecomAppChannel extends BaseChannel {
       throw new Error(`企业微信应用消息推送失败: ${data.errmsg}`)
     }
 
-    return response
+    return {
+      response,
+      finalPayload,
+      responseSummary: data,
+    }
   }
 } 

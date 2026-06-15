@@ -1,4 +1,4 @@
-import { BaseChannel, ChannelConfig, SendMessageOptions } from "./base"
+import { BaseChannel, ChannelConfig, SendMessageOptions, SendMessageResult } from "./base"
 
 interface FeishuMessage {
   msg_type: "text" | "post"
@@ -97,17 +97,19 @@ export class FeishuChannel extends BaseChannel {
   async sendMessage(
     message: FeishuMessage,
     options: SendMessageOptions
-  ): Promise<Response> {
+  ): Promise<SendMessageResult> {
     const { webhook, secret } = options
     
     if (!webhook) {
       throw new Error("飞书机器人 Webhook 不能为空")
     }
 
+    const finalPayload = structuredClone(message)
+
     // 处理富文本消息的内容格式
-    if (message.msg_type === "post" && typeof message.content.post?.zh_cn.content === 'string') {
+    if (finalPayload.msg_type === "post" && typeof finalPayload.content.post?.zh_cn.content === 'string') {
       try {
-        message.content.post.zh_cn.content = JSON.parse(message.content.post.zh_cn.content as any);
+        finalPayload.content.post!.zh_cn.content = JSON.parse(finalPayload.content.post!.zh_cn.content as any);
       } catch {
         throw new Error("富文本内容格式不正确，请提供有效的JSON格式");
       }
@@ -116,25 +118,30 @@ export class FeishuChannel extends BaseChannel {
     // 如果有密钥，需要计算签名
     if (secret) {
       const timestamp = Math.floor(Date.now() / 1000).toString()
-      message.timestamp = timestamp
-      message.sign = await generateFeishuSign(secret, timestamp)
+      finalPayload.timestamp = timestamp
+      finalPayload.sign = await generateFeishuSign(secret, timestamp)
     }
 
-    console.log('sendFeishuMessage message:', message)
+    console.log('sendFeishuMessage message:', finalPayload)
 
     const response = await fetch(webhook, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(message),
+      body: JSON.stringify(finalPayload),
     })
 
-    if (!response.ok) {
-      const data = await response.json() as { code: number, msg: string }
+    const data = await response.json() as { code?: number, msg?: string }
+
+    if (!response.ok || data.code !== 0) {
       throw new Error(`飞书消息推送失败: ${data.msg}`)
     }
 
-    return response
+    return {
+      response,
+      finalPayload,
+      responseSummary: data,
+    }
   }
 } 
