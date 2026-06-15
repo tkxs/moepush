@@ -54,6 +54,37 @@ const applyMigrations = () => {
     execSync(`wrangler d1 migrations apply "${dbName}" --remote`);
 };
 
+const requiredTables = ['message_receipts', 'message_receipt_deliveries'];
+
+const getExistingTables = () => {
+    const result = execSync(
+        `wrangler d1 execute "${dbName}" --remote --command "SELECT name FROM sqlite_master WHERE type='table';"`
+    ).toString();
+
+    return requiredTables.filter((tableName) => result.includes(tableName));
+};
+
+const ensureMessageReceiptTables = () => {
+    const existingTables = getExistingTables();
+    const missingTables = requiredTables.filter((tableName) => !existingTables.includes(tableName));
+
+    if (missingTables.length === 0) {
+        console.log('Message receipt tables already exist');
+        return;
+    }
+
+    console.log(`Missing tables detected: ${missingTables.join(', ')}. Creating fallback tables...`);
+    execSync(`wrangler d1 execute "${dbName}" --remote --file=drizzle/0011_polite_message_receipts.sql`);
+
+    const afterTables = getExistingTables();
+    const stillMissing = requiredTables.filter((tableName) => !afterTables.includes(tableName));
+    if (stillMissing.length > 0) {
+        throw new Error(`Failed to create required tables: ${stillMissing.join(', ')}`);
+    }
+
+    console.log('Fallback table creation completed successfully');
+};
+
 const createPagesSecret = () => {
     const envFilePath = path.resolve('.env');
     const envVariables = [
@@ -154,6 +185,7 @@ const main = async () => {
         await checkProjectExists();
         checkAndCreateDatabase();
         applyMigrations();
+        ensureMessageReceiptTables();
         createPagesSecret();
         deployPages();
 
