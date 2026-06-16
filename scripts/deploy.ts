@@ -50,8 +50,23 @@ const checkAndCreateDatabase = () => {
     fs.writeFileSync(wranglerConfigPath, JSON.stringify(wranglerConfig, null, 2));
 };
 
+const isBrokenMessageReceiptSchemaError = (error: unknown) => {
+    if (!(error instanceof Error)) return false;
+    return error.message.includes('no such table: main.users');
+};
+
 const applyMigrations = () => {
-    execSync(`wrangler d1 migrations apply "${dbName}" --remote`);
+    try {
+        execSync(`wrangler d1 migrations apply "${dbName}" --remote`);
+    } catch (error) {
+        if (!isBrokenMessageReceiptSchemaError(error)) {
+            throw error;
+        }
+
+        console.log('Broken message receipt schema detected during migration. Repairing tables before retry...');
+        execSync(`wrangler d1 execute "${dbName}" --remote --file=drizzle/0012_fix_message_receipt_user_fk.sql`);
+        execSync(`wrangler d1 migrations apply "${dbName}" --remote`);
+    }
 };
 
 const requiredTables = ['message_receipts', 'message_receipt_deliveries'];
