@@ -81,7 +81,7 @@ const getExistingTables = () => {
 
 const getMessageReceiptForeignKeyTargets = () => {
     const result = execSync(
-        `wrangler d1 execute "${dbName}" --remote --command "SELECT \n  (SELECT \"table\" FROM pragma_foreign_key_list('message_receipts') WHERE \"from\" = 'user_id' LIMIT 1) AS receipts_user_table,\n  (SELECT \"table\" FROM pragma_foreign_key_list('message_receipt_deliveries') WHERE \"from\" = 'user_id' LIMIT 1) AS deliveries_user_table;"`
+        `wrangler d1 execute "${dbName}" --remote --command "SELECT (SELECT [table] FROM pragma_foreign_key_list('message_receipts') WHERE [from] = 'user_id' LIMIT 1) AS receipts_user_table, (SELECT [table] FROM pragma_foreign_key_list('message_receipt_deliveries') WHERE [from] = 'user_id' LIMIT 1) AS deliveries_user_table"`
     ).toString();
 
     return {

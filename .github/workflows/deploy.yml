@@ -41,12 +41,12 @@ jobs:
 
       - name: Verify D1 message receipt tables
         run: |
-          TABLE_RESULT=$(wrangler d1 execute "${{ secrets.D1_DATABASE_NAME }}" --remote --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('message_receipts','message_receipt_deliveries');")
+          TABLE_RESULT=$(wrangler d1 execute "${{ secrets.D1_DATABASE_NAME }}" --remote --command "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('message_receipts','message_receipt_deliveries')")
           echo "$TABLE_RESULT"
           echo "$TABLE_RESULT" | grep "message_receipts"
           echo "$TABLE_RESULT" | grep "message_receipt_deliveries"
 
-          FK_RESULT=$(wrangler d1 execute "${{ secrets.D1_DATABASE_NAME }}" --remote --command "SELECT (SELECT \"table\" FROM pragma_foreign_key_list('message_receipts') WHERE \"from\" = 'user_id' LIMIT 1) AS receipts_user_table, (SELECT \"table\" FROM pragma_foreign_key_list('message_receipt_deliveries') WHERE \"from\" = 'user_id' LIMIT 1) AS deliveries_user_table;")
+          FK_RESULT=$(wrangler d1 execute "${{ secrets.D1_DATABASE_NAME }}" --remote --command "SELECT (SELECT [table] FROM pragma_foreign_key_list('message_receipts') WHERE [from] = 'user_id' LIMIT 1) AS receipts_user_table, (SELECT [table] FROM pragma_foreign_key_list('message_receipt_deliveries') WHERE [from] = 'user_id' LIMIT 1) AS deliveries_user_table")
           echo "$FK_RESULT"
           echo "$FK_RESULT" | grep "user"
         env:
