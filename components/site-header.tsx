@@ -20,29 +20,18 @@ export function SiteHeader({ user, variant = "home", nav }: SiteHeaderProps) {
       <div className="container flex items-center justify-between h-14">
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center space-x-2 transition-colors hover:opacity-80">
-            <Image src="/moe_logo.png" alt="MoePush" width={36} height={36} />
+            <Image src="/moe_logo.png" alt="TkxsPush" width={36} height={36} />
             <span className={cn(
               "font-bold bg-gradient-to-r from-blue-500 to-indigo-500 text-transparent bg-clip-text",
               variant === "dashboard" && "hidden sm:inline-block"
             )}>
-              MoePush
+              TkxsPush
             </span>
           </Link>
           {nav}
         </div>
 
         <div className="flex items-center space-x-6">
-          {variant === "home" && (
-            <Link
-              href="https://github.com/beilunyang/moepush"
-              target="_blank"
-              rel="noreferrer"
-              className="text-sm font-medium text-gray-600 hover:text-blue-500 transition-colors"
-            >
-              GitHub
-            </Link>
-          )}
-          
           {user ? (
             <UserNav user={user} />
           ) : (
@@ -61,4 +50,4 @@ export function SiteHeader({ user, variant = "home", nav }: SiteHeaderProps) {
       </div>
     </header>
   );
-} 
+}

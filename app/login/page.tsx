@@ -4,8 +4,8 @@ import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 
 export const metadata: Metadata = {
-  title: "登录 - MoePush",
-  description: "登录到 MoePush",
+  title: "登录 - TkxsPush",
+  description: "登录到 TkxsPush",
 };
 
 export default function LoginPage() {
@@ -16,7 +16,7 @@ export default function LoginPage() {
         <div className="relative z-20 flex items-center text-lg font-medium">
           <Link href="/" className="flex items-center space-x-2">
             <span className="bg-gradient-to-r from-white to-blue-100 text-transparent bg-clip-text">
-              MoePush
+              TkxsPush
             </span>
           </Link>
         </div>
@@ -54,4 +54,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}

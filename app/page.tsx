@@ -16,13 +16,6 @@ export default async function Home() {
       <main className="flex-1">
         <section className="relative overflow-hidden min-h-screen flex items-center">
           <div className="container flex max-w-[64rem] flex-col items-center gap-4 text-center pt-14 pb-24 md:pb-32">
-            <div className="inline-block rounded-full bg-blue-100 px-4 py-1.5 text-sm font-medium text-blue-600">
-              <span className="inline-block animate-bounce mr-2">✨</span>
-              <Link href="https://github.com/beilunyang/moepush" target="_blank" rel="noreferrer">
-                MoePush 现已开源
-              </Link>
-              <span className="inline-block animate-bounce ml-2">✨</span>
-            </div>
             <h1 className="font-bold text-4xl sm:text-5xl md:text-6xl lg:text-7xl">
               <span className="bg-gradient-to-r from-blue-500 to-indigo-500 text-transparent bg-clip-text">
                 可爱又强大的
@@ -41,7 +34,6 @@ export default async function Home() {
               </Link>
             </div>
             
-            {/* 添加可爱的装饰图案 */}
             <div className="absolute top-1/2 -translate-y-1/2 left-0 w-64 h-64 bg-gradient-to-r from-blue-300 to-indigo-300 rounded-full filter blur-3xl opacity-20 animate-blob" />
             <div className="absolute top-1/2 -translate-y-1/2 right-0 w-64 h-64 bg-gradient-to-r from-indigo-300 to-blue-300 rounded-full filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
           </div>

@@ -9,7 +9,7 @@ CREATE TABLE `message_receipts` (
 	`success_count` integer DEFAULT 0 NOT NULL,
 	`failed_count` integer DEFAULT 0 NOT NULL,
 	`created_at` integer DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `message_receipts_user_id_idx` ON `message_receipts` (`user_id`);
@@ -37,7 +37,7 @@ CREATE TABLE `message_receipt_deliveries` (
 	`error_message` text,
 	`created_at` integer DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	FOREIGN KEY (`receipt_id`) REFERENCES `message_receipts`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE INDEX `message_receipt_deliveries_receipt_id_idx` ON `message_receipt_deliveries` (`receipt_id`);

@@ -4,7 +4,7 @@ import { RegisterForm } from "@/components/auth/register-form";
 import { GitHubButton } from "@/components/auth/github-button";
 
 export const metadata: Metadata = {
-  title: "注册 - MoePush",
+  title: "注册 - TkxsPush",
   description: "创建新账号",
 };
 
@@ -16,7 +16,7 @@ export default function RegisterPage() {
         <div className="relative z-20 flex items-center text-lg font-medium">
           <Link href="/" className="flex items-center space-x-2">
             <span className="bg-gradient-to-r from-white to-blue-100 text-transparent bg-clip-text">
-              MoePush
+              TkxsPush
             </span>
           </Link>
         </div>
@@ -64,4 +64,4 @@ export default function RegisterPage() {
       </div>
     </div>
   );
-} 
+}

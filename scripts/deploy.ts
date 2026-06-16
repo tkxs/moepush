@@ -64,17 +64,25 @@ const getExistingTables = () => {
     return requiredTables.filter((tableName) => result.includes(tableName));
 };
 
+const getMessageReceiptForeignKeyTargets = () => {
+    const result = execSync(
+        `wrangler d1 execute "${dbName}" --remote --command "SELECT \n  (SELECT \"table\" FROM pragma_foreign_key_list('message_receipts') WHERE \"from\" = 'user_id' LIMIT 1) AS receipts_user_table,\n  (SELECT \"table\" FROM pragma_foreign_key_list('message_receipt_deliveries') WHERE \"from\" = 'user_id' LIMIT 1) AS deliveries_user_table;"`
+    ).toString();
+
+    return {
+        receiptsUserTable: result.includes('receipts_user_table: user') || result.includes('"receipts_user_table":"user"'),
+        deliveriesUserTable: result.includes('deliveries_user_table: user') || result.includes('"deliveries_user_table":"user"'),
+    };
+};
+
 const ensureMessageReceiptTables = () => {
     const existingTables = getExistingTables();
     const missingTables = requiredTables.filter((tableName) => !existingTables.includes(tableName));
 
-    if (missingTables.length === 0) {
-        console.log('Message receipt tables already exist');
-        return;
+    if (missingTables.length > 0) {
+        console.log(`Missing tables detected: ${missingTables.join(', ')}. Creating fallback tables...`);
+        execSync(`wrangler d1 execute "${dbName}" --remote --file=drizzle/0011_polite_message_receipts.sql`);
     }
-
-    console.log(`Missing tables detected: ${missingTables.join(', ')}. Creating fallback tables...`);
-    execSync(`wrangler d1 execute "${dbName}" --remote --file=drizzle/0011_polite_message_receipts.sql`);
 
     const afterTables = getExistingTables();
     const stillMissing = requiredTables.filter((tableName) => !afterTables.includes(tableName));
@@ -82,7 +90,18 @@ const ensureMessageReceiptTables = () => {
         throw new Error(`Failed to create required tables: ${stillMissing.join(', ')}`);
     }
 
-    console.log('Fallback table creation completed successfully');
+    const foreignKeys = getMessageReceiptForeignKeyTargets();
+    if (!foreignKeys.receiptsUserTable || !foreignKeys.deliveriesUserTable) {
+        console.log('Incorrect message receipt foreign keys detected. Repairing tables...');
+        execSync(`wrangler d1 execute "${dbName}" --remote --file=drizzle/0012_fix_message_receipt_user_fk.sql`);
+
+        const repairedForeignKeys = getMessageReceiptForeignKeyTargets();
+        if (!repairedForeignKeys.receiptsUserTable || !repairedForeignKeys.deliveriesUserTable) {
+            throw new Error('Failed to repair message receipt foreign keys');
+        }
+    }
+
+    console.log('Message receipt tables verified successfully');
 };
 
 const createPagesSecret = () => {
@@ -149,10 +168,8 @@ const createProject = async () => {
             throw new Error('Failed to create project');
         }
 
-        // 等待项目创建完成
         await new Promise(resolve => setTimeout(resolve, 5000));
         
-        // 验证项目是否真正创建成功
         const verifyResponse = await fetch(
             `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`,
             {
