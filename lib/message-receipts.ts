@@ -158,6 +158,19 @@ function mapDelivery(record: MessageReceiptDelivery): MessageReceiptDeliveryItem
   }
 }
 
+async function withReceiptFallback<T>(
+  action: string,
+  fallback: T,
+  task: () => Promise<T>
+): Promise<T> {
+  try {
+    return await task()
+  } catch (error) {
+    console.warn(`[MESSAGE_RECEIPTS_${action}] skipped`, error)
+    return fallback
+  }
+}
+
 export async function cleanupExpiredMessageReceipts() {
   const db = getDb()
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000)
@@ -193,6 +206,10 @@ export async function createMessageReceipt(input: CreateReceiptInput) {
   return id
 }
 
+export async function tryCreateMessageReceipt(input: CreateReceiptInput) {
+  return withReceiptFallback("CREATE", null, () => createMessageReceipt(input))
+}
+
 export async function createMessageReceiptDelivery(input: CreateDeliveryInput) {
   const db = getDb()
   await db.insert(messageReceiptDeliveries).values({
@@ -214,6 +231,13 @@ export async function createMessageReceiptDelivery(input: CreateDeliveryInput) {
   })
 }
 
+export async function tryCreateMessageReceiptDelivery(input: CreateDeliveryInput) {
+  return withReceiptFallback("CREATE_DELIVERY", false, async () => {
+    await createMessageReceiptDelivery(input)
+    return true
+  })
+}
+
 export async function finalizeMessageReceipt(receiptId: string) {
   const db = getDb()
   const deliveries = await db.query.messageReceiptDeliveries.findMany({
@@ -224,7 +248,13 @@ export async function finalizeMessageReceipt(receiptId: string) {
   const failedCount = deliveries.filter(item => item.status === "failed").length
 
   const status: ReceiptStatus =
-    failedCount === 0 ? "success" : successCount === 0 ? "failed" : "partial"
+    deliveries.length === 0
+      ? "failed"
+      : failedCount === 0
+        ? "success"
+        : successCount === 0
+          ? "failed"
+          : "partial"
 
   await db
     .update(messageReceipts)
@@ -236,6 +266,10 @@ export async function finalizeMessageReceipt(receiptId: string) {
     .where(eq(messageReceipts.id, receiptId))
 
   return { status, successCount, failedCount }
+}
+
+export async function tryFinalizeMessageReceipt(receiptId: string) {
+  return withReceiptFallback("FINALIZE", null, () => finalizeMessageReceipt(receiptId))
 }
 
 export async function getMessageReceipts(params: {

@@ -5,9 +5,9 @@ import { eq } from "drizzle-orm"
 import { safeInterpolate } from "@/lib/template"
 import { sendChannelMessage } from "@/lib/channels"
 import {
-  createMessageReceipt,
-  createMessageReceiptDelivery,
-  finalizeMessageReceipt,
+  tryCreateMessageReceipt,
+  tryCreateMessageReceiptDelivery,
+  tryFinalizeMessageReceipt,
 } from "@/lib/message-receipts"
 
 export const runtime = "edge"
@@ -71,10 +71,11 @@ export async function POST(
       channelType: endpoint.channel.type,
     }
 
+    // Message receipt is best-effort only and must never block delivery.
     receiptId = parentReceiptId
       ? parentReceiptId
       : !debugMode
-        ? await createMessageReceipt({
+        ? await tryCreateMessageReceipt({
             userId: endpoint.userId,
             sourceType,
             sourceId: endpoint.id,
@@ -97,7 +98,7 @@ export async function POST(
     )
 
     if (receiptId) {
-      await createMessageReceiptDelivery({
+      await tryCreateMessageReceiptDelivery({
         receiptId,
         userId: receiptContext.userId,
         targetId: receiptContext.targetId,
@@ -111,7 +112,7 @@ export async function POST(
         responseSummary: sendResult.responseSummary,
       })
       if (!parentReceiptId) {
-        await finalizeMessageReceipt(receiptId)
+        await tryFinalizeMessageReceipt(receiptId)
       }
     }
 
@@ -135,7 +136,7 @@ export async function POST(
     console.error("Push error:", error)
 
     if (!debugMode && receiptId && receiptContext) {
-      await createMessageReceiptDelivery({
+      await tryCreateMessageReceiptDelivery({
         receiptId,
         userId: receiptContext.userId,
         targetId: receiptContext.targetId,
@@ -149,7 +150,7 @@ export async function POST(
         errorMessage: error instanceof Error ? error.message : "推送失败",
       })
       if (!parentReceiptId) {
-        await finalizeMessageReceipt(receiptId)
+        await tryFinalizeMessageReceipt(receiptId)
       }
     }
 

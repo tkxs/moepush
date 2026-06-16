@@ -4,8 +4,8 @@ import { fetchWithTimeout } from '@/lib/utils'
 import { endpointGroups, endpointToGroup } from '@/lib/db/schema/endpoint-groups'
 import { eq } from 'drizzle-orm'
 import {
-  createMessageReceipt,
-  finalizeMessageReceipt,
+  tryCreateMessageReceipt,
+  tryFinalizeMessageReceipt,
 } from '@/lib/message-receipts'
 
 export const runtime = 'edge'
@@ -56,7 +56,7 @@ export async function POST(
     }
 
     const receiptId = !debugMode
-      ? await createMessageReceipt({
+      ? await tryCreateMessageReceipt({
           userId: group.userId,
           sourceType: "group",
           sourceId: group.id,
@@ -107,7 +107,7 @@ export async function POST(
     const failedCount = results.filter((r: any) => r.status === 'rejected').length
 
     if (receiptId) {
-      await finalizeMessageReceipt(receiptId)
+      await tryFinalizeMessageReceipt(receiptId)
     }
 
     return NextResponse.json({
@@ -131,4 +131,4 @@ export async function POST(
       { status: 500 }
     )
   }
-} 
+}
