@@ -3,6 +3,7 @@
   "version": "0.2.13",
   "private": true,
   "scripts": {
+    "test": "node --test scripts/*.test.mjs",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",

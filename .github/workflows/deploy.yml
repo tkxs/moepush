@@ -24,8 +24,8 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test authentication and deployment
-        run: node --test scripts/auth.test.mjs scripts/deploy.test.mjs
+      - name: Test authentication, deployment and push templates
+        run: pnpm test
 
       - name: Install Wrangler
         run: pnpm i -g wrangler

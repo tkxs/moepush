@@ -37,6 +37,12 @@
 - Bark App
 - 通用 Webhook
 
+## 模板变量与富文本
+
+接口调用方按标准 JSON 传入原始正文即可，支持换行、引号、反斜杠等字符，无需提前转义。飞书富文本编辑框中的 JSON 会作为字符串嵌入消息模板；服务器会逐层解析模板、替换变量并序列化，保证第二次解析富文本时仍是有效 JSON。已有模板不需要修改。
+
+本地执行 `npm test` 可验证模板替换及实际推送路由，飞书请求在测试中模拟，不会发送真实消息。
+
 ## 技术栈
 - **框架**: [Next.js](https://nextjs.org/) (App Router)
 - **平台**: [Cloudflare Pages](https://pages.cloudflare.com/)

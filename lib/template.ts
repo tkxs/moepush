@@ -45,80 +45,66 @@ const BUILT_IN_FUNCTIONS = {
 
 type BuiltInFunction = keyof typeof BUILT_IN_FUNCTIONS
 
-// 函数调用正则表达式
-const FUNCTION_CALL_REGEX = /\${(\w+)\((.*?)\)}/g
-// 变量替换正则表达式
-const VARIABLE_REGEX = /\${([\w.]+)}/g
+// Resolve each expression once: text coming from a request is data, not another template.
+const EXPRESSION_REGEX = /\${(?:(\w+)\((.*?)\)|([\w.]+))}/g
 
 export function safeInterpolate(
     template: string,
     data: Record<string, any>,
     fallback = ''
 ): string {
-    console.log('safeInterpolate template:', template)
-    
-    // 先处理函数调用
-    let result = template.replace(FUNCTION_CALL_REGEX, (_, fnName, argsStr) => {
-        try {
-            // 解析函数名
-            const fn = BUILT_IN_FUNCTIONS[fnName as BuiltInFunction]
-            if (!fn) throw new Error(`未知的函数: ${fnName}`)
-            
-            // 解析参数
-            const args = argsStr.split(',').map((arg: string) => {
-                const trimmed = arg.trim()
-                // 处理变量路径
-                const parts = trimmed.split('.')
-                if (parts.length > 1) {
-                    return parts.reduce((acc: any, part: string) => {
-                        if (acc === null || acc === undefined) {
-                            throw new Error(`Cannot read property '${part}' of ${acc}`)
-                        }
-                        return acc[part]
-                    }, data)
-                }
-                // 处理数字
-                if (/^\d+$/.test(trimmed)) {
-                    return parseInt(trimmed, 10)
-                }
-                // 处理字符串字面量
-                return trimmed.replace(/^["']|["']$/g, '')
-            })
-            // @ts-expect-error "ignore" 
-            return fn(...args)
-        } catch (error: any) {
-            console.warn(`函数调用错误: ${error.message}`)
-            return fallback
-        }
-    })
-    
-    // 再处理变量替换
-    result = result.replace(VARIABLE_REGEX, (_, path) => {
-        try {
-            const value = path.split('.').reduce((acc: any, part: string) => {
-                if (acc === null || acc === undefined) {
-                    throw new Error(`Cannot read property '${part}' of ${acc}`)
-                }
-                return acc[part]
-            }, data)
+    const lookup = (path: string): unknown => path.split('.').reduce((value: any, key) => {
+        return value != null && Object.hasOwn(value, key) ? value[key] : undefined
+    }, data)
 
-            // 处理字符串中的特殊字符, 避免在JSON.parse时出错
-            if (typeof value === 'string') {
-                return value
-                    .replace(/\n/g, '\\n')     // 处理换行符
-                    .replace(/\r/g, '\\r')     // 处理回车符
-                    .replace(/\t/g, '\\t')     // 处理制表符
-                    .replace(/"/g, '\\"')      // 处理双引号
+    const interpolate = (text: string, escapeJson = false) => text.replace(EXPRESSION_REGEX, (_, fnName, argsStr, path) => {
+        let value: unknown
+        try {
+            if (fnName) {
+                if (!Object.hasOwn(BUILT_IN_FUNCTIONS, fnName)) throw new Error(`未知的函数: ${fnName}`)
+                const fn = BUILT_IN_FUNCTIONS[fnName as BuiltInFunction]
+                const args = argsStr.trim() ? argsStr.split(',').map((arg: string) => {
+                    const trimmed = arg.trim()
+                    if (/^".*"$/.test(trimmed)) return JSON.parse(trimmed)
+                    if (/^'.*'$/.test(trimmed)) return trimmed.slice(1, -1)
+                    if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed)
+                    return trimmed.includes('.') ? lookup(trimmed) : trimmed
+                }) : []
+                value = (fn as (...args: any[]) => unknown)(...args)
+            } else {
+                value = lookup(path)
             }
-
-            return value === undefined ? fallback : String(value)
-        } catch (error: any) {
-            console.warn(`变量解析错误: ${error.message}`)
-            return fallback
+        } catch {
+            value = undefined
         }
+        const result = value === undefined ? fallback : String(value)
+        return escapeJson ? JSON.stringify(result).slice(1, -1) : result
     })
 
-    console.log('safeInterpolate result:', result)
-    return result
+    const render = (value: unknown): unknown => {
+        if (Array.isArray(value)) return value.map(render)
+        if (value && typeof value === 'object') {
+            return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, render(child)]))
+        }
+        if (typeof value !== 'string') return value
+
+        // Rich-text textareas contain serialized JSON inside the outer message JSON.
+        // Parse each template layer BEFORE substitution, then serialize each layer
+        // separately so newlines, quotes and backslashes survive both JSON.parse calls.
+        if (value.includes('${') && /^[\[{]/.test(value.trim())) {
+            let nested: unknown
+            try { nested = JSON.parse(value) } catch { return interpolate(value) }
+            return JSON.stringify(render(nested))
+        }
+        return interpolate(value)
+    }
+
+    let message: unknown
+    try { message = JSON.parse(template) }
+    catch {
+        // Keep legacy templates with unquoted numeric/boolean placeholders working.
+        return interpolate(template, true)
+    }
+    return JSON.stringify(render(message))
 }
 
