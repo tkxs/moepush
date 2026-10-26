@@ -25,6 +25,7 @@ export const {
         },
         providers: [
             GithubProvider({
+                issuer: "https://github.com/login/oauth",
                 clientId: process.env.AUTH_GITHUB_ID!,
                 clientSecret: process.env.AUTH_GITHUB_SECRET!,
             }),
