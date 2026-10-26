@@ -153,14 +153,7 @@ export default async function Home() {
             <Heart className="h-6 w-6 text-blue-500 animate-pulse" />
             <p className="text-center text-sm text-gray-600 md:text-left">
               Built with 💕 by{" "}
-              <a
-                href="https://github.com/beilunyang"
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium hover:text-blue-500 transition-colors"
-              >
-                BeilunYang
-              </a>
+              <span className="font-medium">BeilunYang</span>
             </p>
           </div>
         </div>
