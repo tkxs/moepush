@@ -13,3 +13,5 @@ export interface EndpointGroupWithEndpoints extends EndpointGroup {
   endpointIds: string[]
   endpoints: Endpoint[]
 } 
+
+## 触发
