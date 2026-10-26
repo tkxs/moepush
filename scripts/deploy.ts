@@ -71,22 +71,39 @@ const applyMigrations = () => {
 
 const requiredTables = ['message_receipts', 'message_receipt_deliveries'];
 
-const getExistingTables = () => {
-    const result = execSync(
-        `wrangler d1 execute "${dbName}" --remote --command "SELECT name FROM sqlite_master WHERE type='table';"`
-    ).toString();
+const queryDatabase = <Row>(sql: string): Row[] => {
+    const response = JSON.parse(execSync(
+        `wrangler d1 execute "${dbName}" --remote --json --command "${sql}"`
+    ).toString());
 
-    return requiredTables.filter((tableName) => result.includes(tableName));
+    if (!Array.isArray(response) || response.length === 0 || response.some(
+        (result) => result?.success !== true || !Array.isArray(result.results)
+    )) {
+        throw new Error('Invalid D1 query result');
+    }
+
+    return response.flatMap((result) => result.results);
+};
+
+const getExistingTables = () => {
+    const rows = queryDatabase<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table';");
+
+    return requiredTables.filter((tableName) => rows.some((row) => row.name === tableName));
 };
 
 const getMessageReceiptForeignKeyTargets = () => {
-    const result = execSync(
-        `wrangler d1 execute "${dbName}" --remote --command "SELECT (SELECT [table] FROM pragma_foreign_key_list('message_receipts') WHERE [from] = 'user_id' LIMIT 1) AS receipts_user_table, (SELECT [table] FROM pragma_foreign_key_list('message_receipt_deliveries') WHERE [from] = 'user_id' LIMIT 1) AS deliveries_user_table"`
-    ).toString();
+    const [row] = queryDatabase<{
+        receipts_user_table: string | null;
+        deliveries_user_table: string | null;
+    }>("SELECT (SELECT [table] FROM pragma_foreign_key_list('message_receipts') WHERE [from] = 'user_id' LIMIT 1) AS receipts_user_table, (SELECT [table] FROM pragma_foreign_key_list('message_receipt_deliveries') WHERE [from] = 'user_id' LIMIT 1) AS deliveries_user_table");
+
+    if (!row) {
+        throw new Error('D1 foreign key query returned no rows');
+    }
 
     return {
-        receiptsUserTable: result.includes('receipts_user_table: user') || result.includes('"receipts_user_table":"user"'),
-        deliveriesUserTable: result.includes('deliveries_user_table: user') || result.includes('"deliveries_user_table":"user"'),
+        receiptsUserTable: row.receipts_user_table,
+        deliveriesUserTable: row.deliveries_user_table,
     };
 };
 
@@ -106,14 +123,11 @@ const ensureMessageReceiptTables = () => {
     }
 
     const foreignKeys = getMessageReceiptForeignKeyTargets();
-    if (!foreignKeys.receiptsUserTable || !foreignKeys.deliveriesUserTable) {
-        console.log('Incorrect message receipt foreign keys detected. Repairing tables...');
-        execSync(`wrangler d1 execute "${dbName}" --remote --file=drizzle/0012_fix_message_receipt_user_fk.sql`);
-
-        const repairedForeignKeys = getMessageReceiptForeignKeyTargets();
-        if (!repairedForeignKeys.receiptsUserTable || !repairedForeignKeys.deliveriesUserTable) {
-            throw new Error('Failed to repair message receipt foreign keys');
-        }
+    if (foreignKeys.receiptsUserTable !== 'user' || foreignKeys.deliveriesUserTable !== 'user') {
+        throw new Error(
+            `Incorrect message receipt foreign keys: ${JSON.stringify(foreignKeys)}. ` +
+            'Expected both to reference user. Refusing to rebuild receipt tables automatically.'
+        );
     }
 
     console.log('Message receipt tables verified successfully');
