@@ -110,6 +110,10 @@ https://www.bilibili.com/video/BV1dtZBYnEUX/?p=2
 - `PROJECT_NAME`：项目名称 (可选，默认：moepush)
 - `DISABLE_REGISTER`：是否禁止注册，默认关闭，设置为 `true` 则禁止注册
 
+部署会保留 Cloudflare Pages 生产环境中已有的认证配置，仅在变量缺失时从 GitHub Secrets 初始化。后续在 Cloudflare 控制台更新 OAuth 配置后，重新部署即可生效。
+
+手动运行 `Diagnose GitHub OAuth` 工作流只会检查 GitHub Secrets 中的凭据，不代表 Cloudflare 当前使用的配置。
+
 ### 使用 Docker 部署
 
 ```bash

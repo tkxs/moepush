@@ -133,16 +133,26 @@ const ensureMessageReceiptTables = () => {
     console.log('Message receipt tables verified successfully');
 };
 
-const createPagesSecret = () => {
-    const envFilePath = path.resolve('.env');
-    const envVariables = [
-        `AUTH_SECRET=${process.env.AUTH_SECRET}`,
-        `AUTH_GITHUB_ID=${process.env.AUTH_GITHUB_ID}`,
-        `AUTH_GITHUB_SECRET=${process.env.AUTH_GITHUB_SECRET}`,
-        `DISABLE_REGISTER=${process.env.DISABLE_REGISTER}`,
-    ];
-    fs.writeFileSync(envFilePath, envVariables.join('\n'));
-    execSync(`wrangler pages secret bulk .env`);
+const seedMissingPagesSecrets = (existingVariables: Record<string, unknown>) => {
+    const requiredVariables = ['AUTH_SECRET', 'AUTH_GITHUB_ID', 'AUTH_GITHUB_SECRET'];
+    const missingVariables = requiredVariables.filter(
+        (name) => !Object.hasOwn(existingVariables, name) && !process.env[name]?.trim()
+    );
+    if (missingVariables.length > 0) {
+        throw new Error(`Missing authentication configuration: ${missingVariables.join(', ')}`);
+    }
+
+    const variables = Object.fromEntries(
+        [...requiredVariables, 'DISABLE_REGISTER']
+            .filter((name) => !Object.hasOwn(existingVariables, name))
+            .map((name) => [name, process.env[name] || 'false'])
+    );
+    if (Object.keys(variables).length === 0) {
+        console.log('Preserving existing Cloudflare Pages authentication configuration');
+        return;
+    }
+
+    execSync('wrangler pages secret bulk', { input: JSON.stringify(variables) });
 };
 
 const deployPages = () => {
@@ -151,7 +161,7 @@ const deployPages = () => {
     console.log('Deployment completed successfully');
 };
 
-const checkProjectExists = async () => {
+const getOrCreateProjectEnvironment = async (): Promise<Record<string, unknown>> => {
     try {
         const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`, {
             method: 'GET',
@@ -164,11 +174,23 @@ const checkProjectExists = async () => {
         if (!response.ok && response.status === 404) {
             console.log(`Project ${projectName} does not exist. Creating...`);
             await createProject();
-        } else {
-            console.log(`Project ${projectName} already exists.`);
+            return {};
         }
+        if (!response.ok) {
+            throw new Error(`Error checking project configuration: HTTP ${response.status}`);
+        }
+
+        const data = await response.json() as {
+            success: boolean;
+            result?: { deployment_configs?: { production?: { env_vars?: Record<string, unknown> } } };
+        };
+        if (!data.success || !data.result?.deployment_configs?.production) {
+            throw new Error('Could not inspect Cloudflare Pages production configuration');
+        }
+        console.log(`Project ${projectName} already exists.`);
+        return data.result.deployment_configs.production.env_vars ?? {};
     } catch (error) {
-        console.error('Error checking project existence:', error);
+        console.error('Error checking project configuration:', error);
         throw error;
     }
 };
@@ -228,11 +250,11 @@ const createProject = async () => {
 const main = async () => {
     try {
         setupWranglerConfig();
-        await checkProjectExists();
+        const existingVariables = await getOrCreateProjectEnvironment();
         checkAndCreateDatabase();
         applyMigrations();
         ensureMessageReceiptTables();
-        createPagesSecret();
+        seedMissingPagesSecrets(existingVariables);
         deployPages();
 
         console.log('🎉 All deployment steps completed successfully!');

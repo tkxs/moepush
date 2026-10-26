@@ -10,9 +10,16 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
-async function runDeployment({ foreignKeys, queryOutput } = {}) {
+async function runDeployment({
+  foreignKeys,
+  queryOutput,
+  existingEnvironmentVariables = [],
+  environment = { AUTH_SECRET: 'test-secret', AUTH_GITHUB_ID: 'test-client', AUTH_GITHUB_SECRET: 'test-client-secret' },
+  projectStatus = 200,
+} = {}) {
   const commands = [];
   const errors = [];
+  const secretWrites = [];
   const files = new Map([
     [path.resolve('wrangler.example.json'), JSON.stringify({ d1_databases: [{}] })],
   ]);
@@ -25,7 +32,7 @@ async function runDeployment({ foreignKeys, queryOutput } = {}) {
   };
   const modules = {
     child_process: {
-      execSync(command) {
+      execSync(command, options) {
         commands.push(command);
         if (command === 'wrangler d1 list --json') {
           return Buffer.from(JSON.stringify([{ name: 'moepush-db', uuid: 'test-database' }]));
@@ -34,8 +41,12 @@ async function runDeployment({ foreignKeys, queryOutput } = {}) {
           return result(command, [{ name: 'message_receipts' }, { name: 'message_receipt_deliveries' }]);
         }
         if (command.includes('pragma_foreign_key_list')) return result(command, [rows]);
+        if (command.startsWith('wrangler pages secret bulk')) {
+          secretWrites.push(options?.input ? JSON.parse(options.input) : null);
+          return Buffer.from('');
+        }
         if (command.includes('migrations apply') || command.includes('--file=') ||
-            command === 'wrangler pages secret bulk .env' || command === 'pnpm run deploy') {
+            command === 'pnpm run deploy') {
           return Buffer.from('');
         }
         throw new Error(`Unexpected command: ${command}`);
@@ -56,13 +67,22 @@ async function runDeployment({ foreignKeys, queryOutput } = {}) {
       assert.ok(Object.hasOwn(modules, name), `Unexpected module: ${name}`);
       return modules[name];
     },
-    process: { env: {}, exit: (code) => { exitCode = code; } },
+    process: { env: environment, exit: (code) => { exitCode = code; } },
     console: { log() {}, error: (...args) => errors.push(args.map(String).join(' ')) },
-    fetch: async () => ({ ok: true }),
+    fetch: async () => ({
+      ok: projectStatus === 200,
+      status: projectStatus,
+      json: async () => ({
+        success: true,
+        result: { deployment_configs: { production: { env_vars: Object.fromEntries(
+          existingEnvironmentVariables.map((name) => [name, { type: 'secret_text' }]),
+        ) } } },
+      }),
+    }),
     setTimeout,
     Error,
   }, { timeout: 1000 });
-  return { commands, errors, exitCode };
+  return { commands, errors, exitCode, secretWrites, files };
 }
 
 test('healthy D1 schema reaches Pages deployment without rebuilding receipt tables', async () => {
@@ -93,3 +113,37 @@ for (const queryOutput of ['not JSON', '[{"success":false,"results":[]}]', '[]']
     assert.ok(!result.commands.some((command) => command.includes('--file=')));
   });
 }
+
+test('deployment preserves Cloudflare authentication settings without requiring GitHub copies', async () => {
+  const result = await runDeployment({
+    existingEnvironmentVariables: ['AUTH_SECRET', 'AUTH_GITHUB_ID', 'AUTH_GITHUB_SECRET', 'DISABLE_REGISTER'],
+    environment: {},
+  });
+  assert.equal(result.exitCode, 0, result.errors.join('\n'));
+  assert.ok(result.commands.includes('pnpm run deploy'));
+  assert.equal(result.secretWrites.length, 0);
+  assert.ok(!result.files.has(path.resolve('.env')));
+});
+
+test('deployment seeds only settings that are missing in Cloudflare', async () => {
+  const result = await runDeployment({
+    existingEnvironmentVariables: ['AUTH_SECRET', 'AUTH_GITHUB_ID', 'DISABLE_REGISTER'],
+  });
+  assert.equal(result.exitCode, 0, result.errors.join('\n'));
+  assert.deepEqual(result.secretWrites, [{ AUTH_GITHUB_SECRET: 'test-client-secret' }]);
+});
+
+test('missing authentication settings fail instead of uploading undefined values', async () => {
+  const result = await runDeployment({ environment: { AUTH_SECRET: 'test-secret' } });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.secretWrites.length, 0);
+  assert.ok(!result.commands.includes('pnpm run deploy'));
+  assert.match(result.errors.join('\n'), /AUTH_GITHUB_ID/);
+});
+
+test('failure to inspect Cloudflare settings stops deployment before secret writes', async () => {
+  const result = await runDeployment({ projectStatus: 403 });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.secretWrites.length, 0);
+  assert.ok(!result.commands.includes('pnpm run deploy'));
+});
