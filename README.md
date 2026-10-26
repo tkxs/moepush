@@ -117,40 +117,6 @@ docker pull beilunyang/moepush
 docker run -d -p 3000:3000 -v $(pwd)/.wrangler:/app/.wrangler -e AUTH_SECRET=<你的AUTH_SECRET> -e AUTH_GITHUB_ID=<你的AUTH_GITHUB_ID> -e AUTH_GITHUB_SECRET=<你的AUTH_GITHUB_SECRET> moepush
 ```
 
-## 贡献
-
-欢迎提交 Pull Request 或者 Issue来帮助改进这个项目
-
-## 交流
-<table>
-  <tr style="max-width: 360px">
-    <td>
-      <img src="https://pic.otaku.ren/20250309/AQADAcQxGxQjaVZ-.jpg" />
-    </td>
-    <td>
-      <img src="https://pic.otaku.ren/20250309/AQADCMQxGxQjaVZ-.jpg" />
-    </td>
-  </tr>
-  <tr style="max-width: 360px">
-    <td>
-      关注公众号，了解更多项目进展以及AI，区块链，独立开发资讯
-    </td>
-    <td>
-      添加微信，备注 "MoePush" 拉你进微信交流群
-    </td>
-  </tr>
-</table>
-
-## 支持
-
-如果你喜欢这个项目，欢迎给它一个 Star ⭐️
-或者进行赞助
-<br />
-<br />
-<img src="https://pic.otaku.ren/20240212/AQADPrgxGwoIWFZ-.jpg" style="width: 400px;"/>
-<br />
-<br />
-<a href="https://www.buymeacoffee.com/beilunyang" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me A Coffee" style="width: 400px;" ></a>
 
 ## 调整
 更新调试
